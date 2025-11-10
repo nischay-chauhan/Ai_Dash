@@ -78,3 +78,6 @@ docker-compose.override.yml
 node_modules/
 build/
 dist/
+
+
+uploads/*
