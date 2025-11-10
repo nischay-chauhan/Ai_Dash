@@ -1,9 +1,12 @@
 import os
+import pandas as pd
+import json
 from datetime import datetime
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from backend.database import get_db
 from backend.models.upload import Upload
+from backend.models.summary import Summary
 from backend.utils import get_current_user
 
 router = APIRouter(prefix="/upload", tags=["Upload"])
@@ -60,6 +63,37 @@ def upload_csv(
     db.add(upload_record)
     db.commit()
     db.refresh(upload_record)
+
+    try:
+        df = pd.read_csv(file_path)
+        summary = {
+            "filename": upload_record.filename,
+            "shape": {"rows": df.shape[0], "columns": df.shape[1]},
+            "columns": df.columns.tolist(),
+            "missing_values": df.isnull().sum().to_dict(),
+            "data_types": df.dtypes.astype(str).to_dict(),
+            "stats": df.describe(include='all').fillna("").to_dict(),
+            "numeric_columns": df.select_dtypes(include="number").columns.tolist(),
+            "categorical_columns": df.select_dtypes(exclude="number").columns.tolist(),
+        }
+
+        if len(summary["numeric_columns"]) >= 2:
+            corr = df[summary["numeric_columns"]].corr().round(3).to_dict()
+            summary["correlation"] = corr
+
+        summary["sample_data"] = df.head(5).to_dict(orient="records")
+        summary_json = json.dumps(summary)
+
+        new_summary = Summary(
+            upload_id=upload_record.id,
+            user_id=current_user.id,
+            summary_json=summary_json
+        )
+        db.add(new_summary)
+        db.commit()
+
+    except Exception as e:
+        print(f"Error generating summary: {str(e)}")
 
     return {
         "message": "File uploaded successfully",

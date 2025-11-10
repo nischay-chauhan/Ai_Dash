@@ -5,6 +5,7 @@ import json
 from backend.ai import call_groq_insights
 from backend.database import get_db
 from backend.models.upload import Upload
+from backend.models.summary import Summary
 from backend.utils import get_current_user
 
 router = APIRouter(prefix="/ai", tags=["AI Insights"])
@@ -22,12 +23,18 @@ def ai_insights(
     if not upload_rec:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
 
-    summary_path = f"{upload_rec.filepath}.summary.json"
-    if not os.path.exists(summary_path):
-        raise HTTPException(status_code=400, detail="Summary not available; please generate summary first")
-
-    with open(summary_path, "r") as f:
-        summary = json.load(f)
+    summary_record = db.query(Summary).filter(
+        Summary.upload_id == upload_id,
+        Summary.user_id == current_user.id
+    ).first()
+    
+    if not summary_record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Summary not found. Please generate a summary first using the /data/summary endpoint."
+        )
+    
+    summary = json.loads(summary_record.summary_json)
 
     prompt = f"Analyze this dataset summary and give 3 key insights:\n{json.dumps(summary, indent=2)}"
     try:
