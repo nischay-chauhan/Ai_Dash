@@ -12,5 +12,4 @@ class Summary(Base):
     summary_json = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    # relationships
     upload = relationship("Upload", backref="summary")

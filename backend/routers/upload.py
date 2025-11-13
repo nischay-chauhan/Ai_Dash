@@ -14,8 +14,8 @@ router = APIRouter(prefix="/upload", tags=["Upload"])
 UPLOAD_DIR = "uploads"
 
 
-@router.post("/", status_code=201)
-def upload_csv(
+@router.post("/", status_code=202)
+async def upload_csv(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
@@ -57,50 +57,26 @@ def upload_csv(
         filename=file.filename,
         filepath=file_path,
         size=size,
-        uploaded_at=datetime.utcnow()
+        uploaded_at=datetime.utcnow(),
+        status="uploaded"  
     )
 
     db.add(upload_record)
     db.commit()
     db.refresh(upload_record)
 
-    try:
-        df = pd.read_csv(file_path)
-        summary = {
-            "filename": upload_record.filename,
-            "shape": {"rows": df.shape[0], "columns": df.shape[1]},
-            "columns": df.columns.tolist(),
-            "missing_values": df.isnull().sum().to_dict(),
-            "data_types": df.dtypes.astype(str).to_dict(),
-            "stats": df.describe(include='all').fillna("").to_dict(),
-            "numeric_columns": df.select_dtypes(include="number").columns.tolist(),
-            "categorical_columns": df.select_dtypes(exclude="number").columns.tolist(),
-        }
-
-        if len(summary["numeric_columns"]) >= 2:
-            corr = df[summary["numeric_columns"]].corr().round(3).to_dict()
-            summary["correlation"] = corr
-
-        summary["sample_data"] = df.head(5).to_dict(orient="records")
-        summary_json = json.dumps(summary)
-
-        new_summary = Summary(
-            upload_id=upload_record.id,
-            user_id=current_user.id,
-            summary_json=summary_json
-        )
-        db.add(new_summary)
-        db.commit()
-
-    except Exception as e:
-        print(f"Error generating summary: {str(e)}")
+    from backend.tasks.data_tasks import process_file_task
+    task = process_file_task.delay(upload_record.id)
 
     return {
-        "message": "File uploaded successfully",
+        "message": "File upload accepted and processing started",
+        "upload_id": upload_record.id,
+        "task_id": task.id,
+        "status": "processing",
         "metadata": {
             "id": upload_record.id,
             "filename": upload_record.filename,
             "size": upload_record.size,
-            "uploaded_at": upload_record.uploaded_at,
+            "uploaded_at": upload_record.uploaded_at.isoformat()
         },
     }

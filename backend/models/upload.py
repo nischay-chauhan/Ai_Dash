@@ -12,6 +12,6 @@ class Upload(Base):
     filename = Column(String, nullable=False)
     filepath = Column(String, nullable=False)
     size = Column(Integer, nullable=False)
+    status = Column(String, default="uploaded", nullable=False)
     uploaded_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
-
     user = relationship("User", backref="uploads")
