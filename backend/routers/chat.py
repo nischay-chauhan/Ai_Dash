@@ -1,12 +1,13 @@
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
 from backend.utils import get_current_user
-from backend.chat_service import process_query
+from backend.chat_service import stream_chat_process
 from backend.models.chat import ChatMessage
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
@@ -18,19 +19,17 @@ class ChatRequest(BaseModel):
 
 
 @router.post("/", status_code=200)
-def chat(request: ChatRequest, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+async def chat(request: ChatRequest, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     try:
-        result = process_query(
-            db=db,
-            user_id=current_user.id,
-            upload_id=request.dataset_id,
-            user_question=request.message,
+        return StreamingResponse(
+            stream_chat_process(
+                db=db,
+                user_id=current_user.id,
+                upload_id=request.dataset_id,
+                user_question=request.message,
+            ),
+            media_type="text/event-stream",
         )
-        return result
-    except ValueError as ve:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(ve))
-    except FileNotFoundError as fnf:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(fnf))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Chat processing error: {str(e)}")
 
