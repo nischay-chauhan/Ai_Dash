@@ -13,12 +13,16 @@ from backend.celery_app import celery_app
 def process_file_task(self, upload_id):
     db = SessionLocal()
     try:
+        self.update_state(state='PROGRESS', meta={'current': 10, 'total': 100, 'status': 'Starting processing...'})
+        
         upload = db.query(Upload).filter(Upload.id == upload_id).first()
         if not upload:
             return {"error": "Upload not found"}
 
+        self.update_state(state='PROGRESS', meta={'current': 20, 'total': 100, 'status': 'Loading CSV...'})
         df = pd.read_csv(upload.filepath)
 
+        self.update_state(state='PROGRESS', meta={'current': 40, 'total': 100, 'status': 'Calculating statistics...'})
         summary = {
             "filename": upload.filename,
             "shape": {"rows": df.shape[0], "columns": df.shape[1]},
@@ -37,9 +41,11 @@ def process_file_task(self, upload_id):
         summary["sample_data"] = df.head(5).to_dict(orient="records")
         summary_json = json.dumps(summary)
 
+        self.update_state(state='PROGRESS', meta={'current': 70, 'total': 100, 'status': 'Generating AI insights...'})
         prompt = f"Analyze this dataset summary and give 3 key insights:\n{summary_json}"
         insights = call_groq_insights(prompt)
 
+        self.update_state(state='PROGRESS', meta={'current': 90, 'total': 100, 'status': 'Saving results...'})
         new_summary = Summary(
             upload_id=upload.id,
             user_id=upload.user_id,
@@ -48,6 +54,7 @@ def process_file_task(self, upload_id):
         db.add(new_summary)
         db.commit()
 
+        self.update_state(state='PROGRESS', meta={'current': 100, 'total': 100, 'status': 'Completed'})
         return {"status": "completed", "upload_id": upload.id, "summary_id": new_summary.id}
     except Exception as e:
         return {"status": "failed", "error": str(e)}
