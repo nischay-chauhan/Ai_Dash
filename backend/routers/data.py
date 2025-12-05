@@ -44,9 +44,9 @@ def get_data_summary(
     }
 
     if len(summary["numeric_columns"]) >= 2:
-        corr = df[summary["numeric_columns"]].corr().round(3).to_dict()
-        summary["correlation"] = corr
+        corr = df[summary["numeric_columns"]].corr().round(3)
+        summary["correlation"] = corr.where(pd.notnull(corr), None).to_dict()
 
-    summary["sample_data"] = df.head(5).to_dict(orient="records")
+    summary["sample_data"] = df.head(5).where(pd.notnull(df), None).to_dict(orient="records")
 
     return summary

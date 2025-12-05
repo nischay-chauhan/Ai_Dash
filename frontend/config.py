@@ -5,6 +5,7 @@ load_dotenv()
 
 # API Configuration
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
+API_URL = API_BASE_URL
 
 # UI Configuration
 APP_TITLE = "AI Dashboard"

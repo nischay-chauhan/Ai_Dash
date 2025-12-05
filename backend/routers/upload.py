@@ -80,3 +80,21 @@ async def upload_csv(
             "uploaded_at": upload_record.uploaded_at.isoformat()
         },
     }
+
+@router.get("/", status_code=200)
+async def get_uploads(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    uploads = db.query(Upload).filter(Upload.user_id == current_user.id).order_by(Upload.uploaded_at.desc()).all()
+    
+    return [
+        {
+            "id": upload.id,
+            "filename": upload.filename,
+            "size": upload.size,
+            "uploaded_at": upload.uploaded_at,
+            "status": upload.status
+        }
+        for upload in uploads
+    ]
