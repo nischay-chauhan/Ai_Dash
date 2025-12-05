@@ -8,7 +8,6 @@ from langchain_experimental.tools.python.tool import PythonAstREPLTool
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
 
-# Define the state of our agent
 class AgentState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], "The messages in the conversation"]
 
@@ -19,7 +18,7 @@ def create_graph(df: pd.DataFrame):
     
     llm = ChatGroq(
         temperature=0,
-        model_name="llama-3.3-70b-versatile", # Updated model
+        model_name="llama-3.3-70b-versatile", 
         api_key=os.environ.get("GROQ_API_KEY")
     )
 
@@ -27,9 +26,10 @@ def create_graph(df: pd.DataFrame):
     python_tool.name = "python_interpreter"
     python_tool.description = (
         "A Python shell. Use this to execute python commands. "
-        "Input should be a valid python command. "
         "The dataframe is available as 'df'. "
-        "ALWAYS print the final result using `print(...)` so I can see it."
+        "ALWAYS print the final result using `print(...)` so I can see it. "
+        "You can also search the web by running: "
+        "`from ddgs import DDGS; print(DDGS().text('your query', max_results=3))`"
     )
 
     tools = [python_tool]

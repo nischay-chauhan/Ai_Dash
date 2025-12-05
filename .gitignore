@@ -81,3 +81,7 @@ dist/
 
 
 uploads/*
+
+# ---- Streamlit ----
+.streamlit/secrets.toml
+.streamlit/credentials.toml
