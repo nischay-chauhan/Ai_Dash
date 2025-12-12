@@ -38,8 +38,11 @@ def ai_insights(
 
     prompt = f"Analyze this dataset summary and give 3 key insights:\n{json.dumps(summary, indent=2)}"
     try:
-        insights = call_groq_insights(prompt)
+        insights_json_str = call_groq_insights(prompt)
+        clean_json = insights_json_str.replace("```json", "").replace("```", "").strip()
+        insights = json.loads(clean_json)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"AI API error: {str(e)}")
-
+        print(f"Error parsing insights JSON: {e}")
+        insights = ["Could not parse structured insights. Raw response available."]
+        
     return {"upload_id": upload_id, "insights": insights}

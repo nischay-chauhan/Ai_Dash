@@ -24,7 +24,7 @@ def call_groq_insights(prompt: str, model: str = "openai/gpt-oss-20b") -> str:
         response = client.chat.completions.create(
             model=model,
             messages=[
-                {"role": "system", "content": "You are a data insights assistant."},
+                {"role": "system", "content": "You are a data insights assistant. You must return your response as a valid JSON array of strings, where each string is a distinct insight. Do not include any markdown formatting or other text."},
                 {"role": "user", "content": prompt}
             ],
             max_tokens=500

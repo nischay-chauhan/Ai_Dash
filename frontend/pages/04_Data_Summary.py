@@ -11,12 +11,10 @@ st.set_page_config(page_title="Data Summary", page_icon="📊", layout="wide")
 def data_summary_page():
     st.title("📊 Data Summary & Visualization")
     
-    # Check authentication
     if "access_token" not in st.session_state:
         st.warning("Please log in to view data summaries.")
         st.stop()
         
-    # Fetch list of uploads to allow selection
     headers = get_auth_headers()
     try:
         response = requests.get(f"{API_URL}/upload/", headers=headers)
@@ -28,7 +26,6 @@ def data_summary_page():
                 
             upload_options = {u["filename"]: u["id"] for u in uploads}
             
-            # Default to last uploaded if available
             default_index = 0
             if "last_upload_id" in st.session_state:
                 for i, u in enumerate(uploads):
@@ -50,24 +47,24 @@ def data_summary_page():
                     
                     if summary_response.status_code == 200:
                         summary = summary_response.json()
-                        render_summary(summary)
+                        render_summary(summary, upload_id)
                     else:
                         st.error(f"Failed to fetch summary: {summary_response.text}")
                         
     except Exception as e:
         st.error(f"Error fetching uploads: {str(e)}")
 
-def render_summary(summary):
+
+
+def render_summary(summary, upload_id):
     st.divider()
-    
-    # 1. Dataset Overview
+
     st.header("1. Dataset Overview")
     col1, col2, col3 = st.columns(3)
     col1.metric("Rows", summary["shape"]["rows"])
     col2.metric("Columns", summary["shape"]["columns"])
     col3.metric("Missing Values", sum(summary["missing_values"].values()))
     
-    # 2. Column Types
     st.subheader("Column Types")
     dtypes = summary["data_types"]
     dtype_counts = pd.Series(dtypes.values()).value_counts().reset_index()
@@ -76,7 +73,6 @@ def render_summary(summary):
     fig_types = px.pie(dtype_counts, values="Count", names="Type", title="Column Data Types")
     st.plotly_chart(fig_types, use_container_width=True)
 
-    # 3. Missing Values
     st.header("2. Missing Values")
     missing = summary["missing_values"]
     missing_df = pd.DataFrame(list(missing.items()), columns=["Column", "Missing Count"])
@@ -88,12 +84,10 @@ def render_summary(summary):
     else:
         st.success("No missing values found in the dataset!")
 
-    # 4. Statistical Summary
     st.header("3. Statistical Summary")
     stats = pd.DataFrame(summary["stats"])
-    st.dataframe(stats, use_container_width=True)
+    st.dataframe(stats, width="stretch")
 
-    # 5. Correlation Heatmap
     if "correlation" in summary:
         st.header("4. Correlation Heatmap")
         corr = pd.DataFrame(summary["correlation"])
@@ -102,10 +96,26 @@ def render_summary(summary):
     else:
         st.info("Not enough numeric columns for correlation analysis.")
 
-    # 6. Sample Data
     st.header("5. Sample Data")
     sample = pd.DataFrame(summary["sample_data"])
-    st.dataframe(sample, use_container_width=True)
+    st.dataframe(sample, width="stretch")
+
+    st.divider()
+    st.header("6. Raw Data View")
+    with st.expander("📂 View Full Dataset (First 10k rows)"):
+        if st.button("Load Raw Data"):
+            with st.spinner("Loading data..."):
+                try:
+                    headers = get_auth_headers()
+                    response = requests.get(f"{API_URL}/data/content/{upload_id}", headers=headers)
+                    if response.status_code == 200:
+                        data = response.json()
+                        df = pd.DataFrame(data)
+                        st.dataframe(df, width="stretch")
+                    else:
+                        st.error(f"Failed to load data: {response.text}")
+                except Exception as e:
+                    st.error(f"Error loading data: {str(e)}")
 
 if __name__ == "__main__":
     data_summary_page()

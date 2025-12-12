@@ -14,73 +14,73 @@ def upload_page():
         st.stop()
         
     st.subheader("Upload New File")
-    uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
+    uploaded_files = st.file_uploader("Choose CSV files", type="csv", accept_multiple_files=True)
     
-    if uploaded_file is not None:
-        if st.button("Upload File", type="primary"):
-            with st.spinner("Uploading..."):
-                try:
-                    files = {"file": (uploaded_file.name, uploaded_file, "text/csv")}
-                    headers = get_auth_headers()
+    if uploaded_files:
+        if st.button("Upload Files", type="primary"):
+            for uploaded_file in uploaded_files:
+                with st.container(border=True):
+                    st.write(f"**Processing: {uploaded_file.name}**")
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
                     
-                    response = requests.post(
-                        f"{API_URL}/upload/",
-                        files=files,
-                        headers=headers
-                    )
-                    
-                    if response.status_code == 202:
-                        data = response.json()
-                        task_id = data.get("task_id")
-                        upload_id = data.get("upload_id")
+                    try:
+                        # Reset file pointer to beginning
+                        uploaded_file.seek(0)
+                        files = {"file": (uploaded_file.name, uploaded_file, "text/csv")}
+                        headers = get_auth_headers()
                         
-                        st.success(f"File '{uploaded_file.name}' uploaded! Processing...")
+                        response = requests.post(
+                            f"{API_URL}/upload/",
+                            files=files,
+                            headers=headers
+                        )
                         
-                        # Progress Bar
-                        progress_bar = st.progress(0)
-                        status_text = st.empty()
-                        
-                        # SSE Client to listen for progress
-                        try:
-                            # Connect to the SSE stream
-                            # Note: We use stream=True to keep connection open
-                            stream_url = f"{API_URL}/tasks/{task_id}/stream"
-                            with requests.get(stream_url, stream=True) as stream_response:
-                                for line in stream_response.iter_lines():
-                                    if line:
-                                        decoded_line = line.decode('utf-8')
-                                        if decoded_line.startswith("data:"):
-                                            import json
-                                            event_data = json.loads(decoded_line[5:])
-                                            
-                                            status = event_data.get("status")
-                                            percent = event_data.get("percent", 0)
-                                            message = event_data.get("message", "")
-                                            
-                                            # Update UI
-                                            progress_bar.progress(percent / 100)
-                                            status_text.text(f"{status.title()}: {message}")
-                                            
-                                            if status == "completed":
-                                                st.success("Processing Complete!")
-                                                st.session_state["last_upload_id"] = upload_id
-                                                if st.button("View Data Summary"):
-                                                    st.switch_page("pages/04_Data_Summary.py")
-                                                break
-                                            elif status == "failed":
-                                                st.error(f"Processing Failed: {event_data.get('error')}")
-                                                break
-                                                
-                        except Exception as e:
-                            st.error(f"Error tracking progress: {str(e)}")
+                        if response.status_code == 202:
+                            data = response.json()
+                            task_id = data.get("task_id")
+                            upload_id = data.get("upload_id")
                             
-                    elif response.status_code == 400:
-                        st.error(f"Upload failed: {response.json().get('detail')}")
-                    else:
-                        st.error(f"An error occurred: {response.text}")
-                        
-                except Exception as e:
-                    st.error(f"Connection error: {str(e)}")
+                            # SSE Client to listen for progress
+                            try:
+                                stream_url = f"{API_URL}/tasks/{task_id}/stream"
+                                with requests.get(stream_url, stream=True) as stream_response:
+                                    for line in stream_response.iter_lines():
+                                        if line:
+                                            decoded_line = line.decode('utf-8')
+                                            if decoded_line.startswith("data:"):
+                                                import json
+                                                event_data = json.loads(decoded_line[5:])
+                                                
+                                                status = event_data.get("status")
+                                                percent = event_data.get("percent", 0)
+                                                message = event_data.get("message", "")
+                                                
+                                                # Update UI
+                                                progress_bar.progress(percent / 100)
+                                                status_text.text(f"{status.title()}: {message}")
+                                                
+                                                if status == "completed":
+                                                    st.success(f"✅ {uploaded_file.name} Complete!")
+                                                    st.session_state["last_upload_id"] = upload_id
+                                                    break
+                                                elif status == "failed":
+                                                    st.error(f"❌ {uploaded_file.name} Failed: {event_data.get('error')}")
+                                                    break
+                                                    
+                            except Exception as e:
+                                st.error(f"Error tracking progress for {uploaded_file.name}: {str(e)}")
+                                
+                        elif response.status_code == 400:
+                            st.error(f"Upload failed for {uploaded_file.name}: {response.json().get('detail')}")
+                        else:
+                            st.error(f"An error occurred with {uploaded_file.name}: {response.text}")
+                            
+                    except Exception as e:
+                        st.error(f"Connection error with {uploaded_file.name}: {str(e)}")
+            
+            if st.button("View Data Summary"):
+                st.switch_page("pages/04_Data_Summary.py")
 
     st.markdown("---")
 
@@ -109,7 +109,7 @@ def upload_page():
                 df = pd.DataFrame(data)
                 st.dataframe(
                     df,
-                    use_container_width=True,
+                    width="stretch",
                     hide_index=True,
                     column_config={
                         "Status": st.column_config.TextColumn(
